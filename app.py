@@ -21,13 +21,13 @@ pipe = joblib.load(MODEL_PATH)
 # ======================
 # INPUT - Slider cho từng môn
 # ======================
-st.header("📥 Nhập điểm từng môn")
+st.header("📥 Nhập điểm từng môn (có thể chọn 0.25, 0.5, …)")
 
-toan = st.slider("Điểm Toán", 0, 10, 7)
-ly = st.slider("Điểm Lý", 0, 10, 7)
-hoa = st.slider("Điểm Hóa", 0, 10, 7)
-van = st.slider("Điểm Văn", 0, 10, 7)
-anh = st.slider("Điểm Anh", 0, 10, 7)
+toan = st.slider("Điểm Toán", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
+ly = st.slider("Điểm Lý", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
+hoa = st.slider("Điểm Hóa", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
+van = st.slider("Điểm Văn", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
+anh = st.slider("Điểm Anh", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
 
 # ======================
 # TÍNH TỔNG ĐIỂM VÀ XÁC SUẤT
@@ -39,12 +39,14 @@ tong_diem_user = []
 prob_user = []
 
 for ng in nganh_list:
+    # Tính tổng điểm theo logic từng ngành
     if ng in ["CNTT","KyThuat","YDuoc"]:
         tong = toan + ly + hoa
     else:
         tong = toan + van + anh
     tong_diem_user.append(tong)
     
+    # Xác suất trúng tuyển bằng model
     X = np.array([[toan, ly, hoa, van, anh]])
     prob = pipe.predict_proba(X)[0,1]
     prob_user.append(prob)
@@ -61,7 +63,7 @@ df_user = pd.DataFrame({
 # ======================
 st.subheader("🚀 Xác suất trúng tuyển theo ngành")
 for i, ng in enumerate(nganh_list):
-    st.write(f"- {ng}: Tổng điểm = {tong_diem_user[i]}, "
+    st.write(f"- {ng}: Tổng điểm = {tong_diem_user[i]:.2f}, "
              f"Điểm chuẩn = {diem_chuan[ng]}, "
              f"Xác suất trúng tuyển = {prob_user[i]*100:.2f}%")
 
