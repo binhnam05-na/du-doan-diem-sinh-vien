@@ -1,103 +1,112 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
-import seaborn as sns
+import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
+import seaborn as sns
 
 st.set_page_config(page_title="Mô hình dự đoán điểm trúng tuyển đại học", layout="wide")
 st.title("🎓 Mô hình dự đoán điểm trúng tuyển đại học")
 
-# ======================
-# Sidebar: nhập điểm và số lượng sinh viên
-# ======================
-st.sidebar.header("📥 Thông tin nhập")
+# -------------------------
+# Sidebar: điểm cá nhân & số lượng sinh viên mô phỏng
+# -------------------------
+st.sidebar.header("📥 Nhập thông tin")
 n_students = st.sidebar.slider("Số lượng sinh viên mô phỏng", 100, 2000, 500, step=50)
+# Điểm cá nhân
 toan = st.sidebar.slider("Điểm Toán", 0.0, 10.0, 0.0, 0.05)
 ly = st.sidebar.slider("Điểm Lý", 0.0, 10.0, 0.0, 0.05)
 hoa = st.sidebar.slider("Điểm Hóa", 0.0, 10.0, 0.0, 0.05)
-van = st.sidebar.slider("Điểm Văn", 0.0, 10.0, 0.0, 0.05)
-anh = st.sidebar.slider("Điểm Anh", 0.0, 10.0, 0.0, 0.05)
-tong_user = toan + ly + hoa  # ví dụ theo khối A00
 
-# ======================
-# Layout 4 cột
-# ======================
-col1, col2, col3, col4 = st.columns([1,1,1,1])
+tong_user = toan + ly + hoa
 
-# ----------------------
-# Cột 1: nhập điểm + hiển thị tổng điểm cá nhân
-# ----------------------
+# -------------------------
+# Dữ liệu mô phỏng điểm chuẩn qua các năm
+# -------------------------
+years = np.arange(2018, 2024)
+nganh_list = ["CNTT","Kinh tế","Kỹ thuật","Luật","Mỹ thuật","Ngôn ngữ Anh",
+              "Quản trị kinh doanh","Truyền thông","Tài chính","Y dược"]
+
+np.random.seed(42)
+data_chuan = pd.DataFrame({
+    "Năm": np.repeat(years, len(nganh_list)),
+    "Ngành": nganh_list*len(years),
+    "DiemChuan": np.round(np.random.uniform(18,26,len(years)*len(nganh_list)),2)
+})
+
+# Cho phép điều chỉnh điểm chuẩn qua các năm
+st.sidebar.subheader("Điều chỉnh điểm chuẩn trung bình")
+dc_adjust = st.sidebar.slider("Điểm chuẩn tăng/giảm", -5.0, 5.0, 0.0, 0.1)
+data_chuan["DiemChuanAdj"] = data_chuan["DiemChuan"] + dc_adjust
+
+# -------------------------
+# Mô phỏng sinh viên
+# -------------------------
+np.random.seed(42)
+df_students = pd.DataFrame({
+    "Toan": np.random.uniform(0,10,n_students),
+    "Ly": np.random.uniform(0,10,n_students),
+    "Hoa": np.random.uniform(0,10,n_students)
+})
+df_students["TongDiem"] = df_students["Toan"] + df_students["Ly"] + df_students["Hoa"]
+
+# Giả lập xác suất trúng tuyển theo ngành
+probs = []
+for ng in nganh_list:
+    dc = data_chuan[data_chuan["Ngành"]==ng]["DiemChuanAdj"].mean()
+    prob = 1/(1+np.exp(-(df_students["TongDiem"]-dc)/2))
+    probs.append(prob)
+df_probs = pd.DataFrame(np.array(probs).T, columns=nganh_list)
+df_students = pd.concat([df_students, df_probs], axis=1)
+
+# -------------------------
+# Layout 2 cột chính
+# -------------------------
+col1, col2 = st.columns([1,3])
+
+# -------------------------
+# Cột trái: thông tin cá nhân
+# -------------------------
 with col1:
     st.subheader("📥 Điểm cá nhân")
-    st.write(f"Tổng điểm (khối A00): {tong_user:.2f}")
+    st.write(f"- Toán: {toan}")
+    st.write(f"- Lý: {ly}")
+    st.write(f"- Hóa: {hoa}")
+    st.write(f"**Tổng điểm 3 môn: {tong_user:.2f}**")
+    
+    st.subheader("📊 Xác suất trúng tuyển dự kiến")
+    for ng in nganh_list:
+        dc = data_chuan[data_chuan["Ngành"]==ng]["DiemChuanAdj"].mean()
+        prob = 1/(1+np.exp(-(tong_user-dc)/2))
+        st.write(f"- {ng}: {prob*100:.2f}%")
 
-# ----------------------
-# Cột 2: phân bố tổng điểm sinh viên mô phỏng
-# ----------------------
+# -------------------------
+# Cột phải: biểu đồ
+# -------------------------
 with col2:
-    st.subheader("📊 Phân bố tổng điểm sinh viên")
-    np.random.seed(42)
-    df_students = pd.DataFrame({
-        "Toan": np.random.uniform(0,10,n_students),
-        "Ly": np.random.uniform(0,10,n_students),
-        "Hoa": np.random.uniform(0,10,n_students)
-    })
-    df_students["TongDiem"] = df_students["Toan"] + df_students["Ly"] + df_students["Hoa"]
-
-    fig, ax = plt.subplots(figsize=(4,3))
-    sns.histplot(df_students["TongDiem"], bins=30, kde=True, ax=ax, color="skyblue")
-    ax.axvline(tong_user, color='red', linestyle='--', label="Tổng điểm cá nhân")
-    ax.set_xlabel("Tổng điểm 3 môn")
-    ax.set_ylabel("Số sinh viên")
-    ax.set_title("Histogram tổng điểm")
-    ax.legend()
+    # Biểu đồ điểm chuẩn qua các năm
+    st.subheader("📈 Biến động điểm chuẩn theo ngành")
+    fig, ax = plt.subplots(figsize=(10,4))
+    sns.lineplot(data=data_chuan, x="Năm", y="DiemChuanAdj", hue="Ngành", marker="o", ax=ax)
+    ax.axhline(y=tong_user, color='red', linestyle='--', label="Tổng điểm cá nhân")
+    ax.text(years[-1]+0.1, tong_user, f"{tong_user:.2f}", color='red')
+    ax.set_ylabel("Điểm chuẩn trung bình")
+    ax.set_xlabel("Năm")
+    ax.set_title("Điểm chuẩn trung bình theo ngành (có điều chỉnh)")
+    ax.legend(bbox_to_anchor=(1.05,1), loc='upper left')
+    plt.tight_layout()
     st.pyplot(fig)
 
-# ----------------------
-# Cột 3: điểm chuẩn qua các năm
-# ----------------------
-with col3:
-    st.subheader("📈 Điểm chuẩn qua các năm")
-    years = np.arange(2018, 2024)
-    nganh_list = ["CNTT","Kinh tế","Kỹ thuật","Luật","Mỹ thuật","Ngôn ngữ Anh",
-                  "Quản trị kinh doanh","Truyền thông","Tài chính","Y dược"]
-    np.random.seed(42)
-    data_chuan = pd.DataFrame({
-        "Năm": np.repeat(years, len(nganh_list)),
-        "Ngành": nganh_list*len(years),
-        "DiemChuan": np.round(np.random.uniform(18,26,len(years)*len(nganh_list)),2)
-    })
+    st.markdown("---")  # khoảng cách giữa các biểu đồ
 
-    fig2, ax2 = plt.subplots(figsize=(4,3))
-    sns.lineplot(data=data_chuan, x="Năm", y="DiemChuan", hue="Ngành", marker="o", ax=ax2)
-    ax2.axhline(tong_user, color='red', linestyle='--', label="Tổng điểm cá nhân")
-    ax2.set_ylabel("Điểm chuẩn")
-    ax2.set_xlabel("Năm")
-    ax2.set_title("Xu hướng điểm chuẩn")
-    ax2.legend().set_visible(False)  # giấu legend để gọn
-    st.pyplot(fig2)
-
-# ----------------------
-# Cột 4: phân cụm sinh viên theo điểm & ngành
-# ----------------------
-with col4:
-    st.subheader("📊 Phân cụm sinh viên")
-    df_probs = pd.DataFrame()
+    # Biểu đồ phân bố sinh viên và xác suất trúng tuyển
+    st.subheader("📊 Phân bố xác suất trúng tuyển sinh viên")
+    fig2, ax2 = plt.subplots(figsize=(10,4))
     for ng in nganh_list:
-        dc = data_chuan[data_chuan["Ngành"]==ng]["DiemChuan"].mean()
-        df_probs[ng] = 1/(1+np.exp(-(df_students["TongDiem"]-dc)/2))  # xác suất logistic
-
-    kmeans = KMeans(n_clusters=3, random_state=42)
-    df_students["Cluster"] = kmeans.fit_predict(df_probs)
-
-    fig3, ax3 = plt.subplots(figsize=(4,3))
-    for c in sorted(df_students["Cluster"].unique()):
-        subset = df_students[df_students["Cluster"]==c]
-        ax3.scatter(subset["TongDiem"], subset["Cluster"], alpha=0.5, s=20, label=f"Cluster {c}")
-    ax3.axvline(tong_user, color='red', linestyle='--', label="Tổng điểm cá nhân")
-    ax3.set_xlabel("Tổng điểm 3 môn")
-    ax3.set_ylabel("Cluster")
-    ax3.set_title("Phân cụm sinh viên theo xác suất trúng tuyển")
-    ax3.legend()
-    st.pyplot(fig3)
+        ax2.scatter(df_students["TongDiem"], df_students[ng], alpha=0.5, label=ng, s=20)
+    ax2.axvline(x=tong_user, color='red', linestyle='--', label="Tổng điểm cá nhân")
+    ax2.set_xlabel("Tổng điểm 3 môn")
+    ax2.set_ylabel("Xác suất trúng tuyển")
+    ax2.set_title("Xác suất trúng tuyển theo tổng điểm sinh viên mô phỏng")
+    ax2.legend(bbox_to_anchor=(1.05,1), loc='upper left')
+    plt.tight_layout()
+    st.pyplot(fig2)
