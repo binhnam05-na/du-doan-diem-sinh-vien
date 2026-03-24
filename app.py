@@ -19,15 +19,20 @@ if not os.path.exists(MODEL_PATH):
 pipe = joblib.load(MODEL_PATH)
 
 # ======================
-# INPUT - Slider cho từng môn
+# Tạo layout 4 cột
 # ======================
-st.header("📥 Nhập điểm từng môn (có thể chọn 0.25, 0.5, …)")
+col1, col2, col3, col4 = st.columns(4)
 
-toan = st.slider("Điểm Toán", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
-ly = st.slider("Điểm Lý", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
-hoa = st.slider("Điểm Hóa", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
-van = st.slider("Điểm Văn", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
-anh = st.slider("Điểm Anh", min_value=0.0, max_value=10.0, value=0.0, step=0.25)
+# ======================
+# INPUT - Slider cho từng môn ở cột 1
+# ======================
+with col1:
+    st.header("📥 Nhập điểm từng môn")
+    toan = st.slider("Điểm Toán", 0.0, 10.0, 0.0, 0.25)
+    ly = st.slider("Điểm Lý", 0.0, 10.0, 0.0, 0.25)
+    hoa = st.slider("Điểm Hóa", 0.0, 10.0, 0.0, 0.25)
+    van = st.slider("Điểm Văn", 0.0, 10.0, 0.0, 0.25)
+    anh = st.slider("Điểm Anh", 0.0, 10.0, 0.0, 0.25)
 
 # ======================
 # TÍNH TỔNG ĐIỂM VÀ XÁC SUẤT
@@ -39,14 +44,12 @@ tong_diem_user = []
 prob_user = []
 
 for ng in nganh_list:
-    # Tính tổng điểm theo logic từng ngành
     if ng in ["CNTT","KyThuat","YDuoc"]:
         tong = toan + ly + hoa
     else:
         tong = toan + van + anh
     tong_diem_user.append(tong)
     
-    # Xác suất trúng tuyển bằng model
     X = np.array([[toan, ly, hoa, van, anh]])
     prob = pipe.predict_proba(X)[0,1]
     prob_user.append(prob)
@@ -59,33 +62,43 @@ df_user = pd.DataFrame({
 })
 
 # ======================
-# Hiển thị xác suất trúng tuyển
+# Hiển thị xác suất trúng tuyển ở cột 1
 # ======================
-st.subheader("🚀 Xác suất trúng tuyển theo ngành")
-for i, ng in enumerate(nganh_list):
-    st.write(f"- {ng}: Tổng điểm = {tong_diem_user[i]:.2f}, "
-             f"Điểm chuẩn = {diem_chuan[ng]}, "
-             f"Xác suất trúng tuyển = {prob_user[i]*100:.2f}%")
+with col1:
+    st.subheader("🚀 Xác suất trúng tuyển")
+    for i, ng in enumerate(nganh_list):
+        st.write(f"- {ng}: Tổng điểm = {tong_diem_user[i]:.2f}, "
+                 f"Điểm chuẩn = {diem_chuan[ng]}, "
+                 f"Xác suất = {prob_user[i]*100:.2f}%")
 
 # ======================
-# BIỂU ĐỒ
+# Biểu đồ tổng điểm ở cột 2
 # ======================
-st.subheader("📊 Minh họa tổng điểm theo ngành")
+with col2:
+    st.subheader("📊 Tổng điểm theo ngành")
+    fig, ax = plt.subplots(figsize=(4,3))
+    sns.barplot(data=df_user, x="Nganh", y="TongDiem", palette="viridis", ax=ax)
+    for i, row in df_user.iterrows():
+        ax.axhline(row["DiemChuan"], color='red', linestyle='--')
+        ax.text(i, row["DiemChuan"]+0.2, f"DC={row['DiemChuan']}", color='red', ha='center')
+    ax.set_ylabel("Tổng điểm")
+    st.pyplot(fig)
 
-fig, ax = plt.subplots(figsize=(8,5))
-sns.barplot(data=df_user, x="Nganh", y="TongDiem", palette="viridis", ax=ax)
-for i, row in df_user.iterrows():
-    ax.axhline(row["DiemChuan"], color='red', linestyle='--')
-    ax.text(i, row["DiemChuan"]+0.2, f"DC={row['DiemChuan']}", color='red', ha='center')
-ax.set_ylabel("Tổng điểm")
-ax.set_title("Tổng điểm của bạn và điểm chuẩn từng ngành")
-st.pyplot(fig)
+# ======================
+# Biểu đồ xác suất ở cột 3
+# ======================
+with col3:
+    st.subheader("📊 Xác suất trúng tuyển")
+    fig2, ax2 = plt.subplots(figsize=(4,3))
+    sns.barplot(data=df_user, x="Nganh", y="XacSuat", palette="coolwarm", ax=ax2)
+    for i, row in df_user.iterrows():
+        ax2.text(i, row["XacSuat"]+0.02, f"{row['XacSuat']*100:.1f}%", ha='center')
+    ax2.set_ylabel("Xác suất")
+    st.pyplot(fig2)
 
-st.subheader("📊 Xác suất trúng tuyển theo ngành")
-fig2, ax2 = plt.subplots(figsize=(8,5))
-sns.barplot(data=df_user, x="Nganh", y="XacSuat", palette="coolwarm", ax=ax2)
-for i, row in df_user.iterrows():
-    ax2.text(i, row["XacSuat"]+0.02, f"{row['XacSuat']*100:.1f}%", ha='center')
-ax2.set_ylabel("Xác suất trúng tuyển")
-ax2.set_title("Khả năng trúng tuyển theo ngành")
-st.pyplot(fig2)
+# ======================
+# Cột 4 có thể để trống hoặc dùng để thêm info
+# ======================
+with col4:
+    st.subheader("ℹ️ Thông tin")
+    st.write("Kéo các slider để thay đổi điểm và xem ảnh hưởng đến khả năng trúng tuyển theo từng ngành.")
