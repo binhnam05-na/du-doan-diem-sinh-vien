@@ -3,12 +3,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.cluster import KMeans
 
 st.set_page_config(page_title="Mô hình dự đoán điểm trúng tuyển đại học", layout="wide")
 st.title("🎓 Mô hình dự đoán điểm trúng tuyển đại học")
 
 # -------------------------
-# Sidebar: điểm cá nhân, số lượng sinh viên, chọn khối
+# Sidebar: điểm cá nhân, số lượng sinh viên, chọn khối & số cụm K-Means
 # -------------------------
 st.sidebar.header("📥 Nhập thông tin")
 n_students = st.sidebar.slider("Số lượng sinh viên mô phỏng", 100, 2000, 500, step=50)
@@ -56,11 +57,13 @@ st.sidebar.subheader("Điều chỉnh điểm chuẩn trung bình")
 dc_adjust = st.sidebar.slider("Điểm chuẩn tăng/giảm", -5.0, 5.0, 0.0, 0.1)
 data_chuan["DiemChuanAdj"] = data_chuan["DiemChuan"] + dc_adjust
 
+# Số cụm K-Means
+k = st.sidebar.slider("Số cụm K-Means", 2, 6, 3, step=1)
+
 # -------------------------
 # Mô phỏng sinh viên
 # -------------------------
 np.random.seed(42)
-# Sinh viên ngẫu nhiên cho tất cả môn (các môn không dùng = 0)
 df_students = pd.DataFrame()
 for mon in diem_dict.keys():
     df_students[mon] = np.random.uniform(0,10,n_students)
@@ -113,7 +116,7 @@ with col2:
     plt.tight_layout()
     st.pyplot(fig)
 
-    st.markdown("---")  # khoảng cách giữa các biểu đồ
+    st.markdown("---")
 
     # Biểu đồ phân bố sinh viên và xác suất trúng tuyển
     st.subheader("📊 Phân bố xác suất trúng tuyển sinh viên")
@@ -127,3 +130,27 @@ with col2:
     ax2.legend(bbox_to_anchor=(1.05,1), loc='upper left')
     plt.tight_layout()
     st.pyplot(fig2)
+
+    st.markdown("---")
+
+    # -------------------------
+    # Biểu đồ K-Means phân cụm
+    # -------------------------
+    st.subheader("📊 Phân cụm K-Means dự đoán trúng tuyển")
+    X_cluster = df_students[["TongDiem"] + nganh_list].values
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    df_students["Cluster"] = kmeans.fit_predict(X_cluster)
+
+    fig3, ax3 = plt.subplots(figsize=(10,4))
+    scatter = ax3.scatter(df_students["TongDiem"], df_students[nganh_list].max(axis=1),
+                          c=df_students["Cluster"], cmap="tab10", alpha=0.6)
+    ax3.axvline(x=tong_user, color='red', linestyle='--', label="Tổng điểm cá nhân")
+    ax3.set_xlabel(f"Tổng điểm 3 môn ({khoi_selected})")
+    ax3.set_ylabel("Xác suất trúng tuyển cao nhất")
+    ax3.set_title("Phân cụm K-Means sinh viên theo tổng điểm & xác suất trúng tuyển")
+
+    legend1 = ax3.legend(*scatter.legend_elements(), title="Cụm")
+    ax3.add_artist(legend1)
+    ax3.legend(loc='upper left')
+    plt.tight_layout()
+    st.pyplot(fig3)
